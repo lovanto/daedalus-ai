@@ -62,7 +62,7 @@ ANTHROPIC_MODEL=claude-sonnet-4-6
 
 DATABASE_URL=postgres://daedalus:daedalus@localhost:5432/daedalus
 PYTHON_AI_PORT=8001
-GO_API_URL=http://localhost:8000
+GO_API_URL=http://localhost:3010
 ```
 
 ## Running locally

@@ -26,7 +26,7 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[settings.GO_API_URL, "http://localhost:8000"],
+    allow_origins=[settings.GO_API_URL, "http://localhost:3010"],
     allow_methods=["*"],
     allow_headers=["*"],
 )

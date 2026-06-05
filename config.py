@@ -15,8 +15,8 @@ class Settings(BaseSettings):
     ANTHROPIC_MODEL: str = "claude-sonnet-4-6"
 
     DATABASE_URL: str = "postgres://daedalus:daedalus@localhost:5432/daedalus"
-    PYTHON_AI_PORT: int = 8001
-    GO_API_URL: str = "http://localhost:8000"
+    PYTHON_AI_PORT: int = 3020
+    GO_API_URL: str = "http://localhost:3010"
 
 
 settings = Settings()
