@@ -11,7 +11,7 @@ from models.schemas import (
     SuggestEvalCasesRequest,
     SuggestEvalCasesResponse,
 )
-from ollama.client import OllamaClient, OllamaError
+from ollama.client import OllamaClient, OllamaError, OllamaTimeoutError
 from ollama.prompts import classify_failure, suggest_eval_cases
 from utils import extract_json
 
@@ -22,6 +22,8 @@ async def _generate(prompt: str, temperature: float = 0.5) -> str:
     client = OllamaClient()
     try:
         return await client.generate(prompt, temperature=temperature)
+    except OllamaTimeoutError as exc:
+        raise HTTPException(status_code=504, detail=str(exc))
     except OllamaError as exc:
         raise HTTPException(status_code=503, detail=str(exc))
 
@@ -121,6 +123,8 @@ async def run_eval_case(req: RunEvalCaseRequest) -> RunEvalCaseResponse:
             model=req.model or None,
             temperature=0.7,
         )
+    except OllamaTimeoutError as exc:
+        raise HTTPException(status_code=504, detail=str(exc))
     except OllamaError as exc:
         raise HTTPException(status_code=503, detail=str(exc))
 

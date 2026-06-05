@@ -8,7 +8,7 @@ from models.schemas import (
     ScopeDriftRequest,
     ScopeDriftResponse,
 )
-from ollama.client import OllamaClient, OllamaError
+from ollama.client import OllamaClient, OllamaError, OllamaTimeoutError
 from ollama.prompts import analyze_patterns, check_scope_drift
 from utils import extract_json
 
@@ -19,6 +19,8 @@ async def _generate(prompt: str, temperature: float = 0.4) -> str:
     client = OllamaClient()
     try:
         return await client.generate(prompt, temperature=temperature)
+    except OllamaTimeoutError as exc:
+        raise HTTPException(status_code=504, detail=str(exc))
     except OllamaError as exc:
         raise HTTPException(status_code=503, detail=str(exc))
 

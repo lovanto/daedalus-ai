@@ -63,7 +63,7 @@ class BuildSystemPromptResponse(BaseModel):
 
 class SuggestEvalCasesRequest(BaseModel):
     agent_definition: AgentDefinitionPayload
-    count: int = Field(default=10, ge=1, le=30)
+    count: int = Field(default=5, ge=1, le=15)
 
 
 class EvalCaseSuggestion(BaseModel):

@@ -56,6 +56,12 @@ class OllamaError(Exception):
     pass
 
 
+class OllamaTimeoutError(OllamaError):
+    """Raised when Ollama does not respond within the configured timeout.
+    Unlike connection errors, timeouts are not retried — the model is busy."""
+    pass
+
+
 # ---------------------------------------------------------------------------
 # Client
 # ---------------------------------------------------------------------------
@@ -174,6 +180,7 @@ class OllamaClient:
             "prompt": prompt,
             "stream": False,
             "options": {"temperature": temperature},
+            "think": self._mode == "local" and settings.OLLAMA_THINK,
         }
         if system:
             payload["system"] = system
@@ -189,6 +196,7 @@ class OllamaClient:
             "model": model or self.default_model,
             "messages": all_messages,
             "stream": False,
+            "think": settings.OLLAMA_THINK,
         }
         data = await self._post("/api/chat", payload)
         return data.get("message", {}).get("content", "")
@@ -206,9 +214,8 @@ class OllamaClient:
                 "Make sure `ollama serve` is running."
             ) from exc
         except httpx.TimeoutException as exc:
-            raise OllamaError(
-                f"Ollama request timed out after {self.timeout}s."
-            ) from exc
+            limit = f"{self.timeout}s" if self.timeout is not None else "no limit set"
+            raise OllamaTimeoutError(f"Ollama request timed out ({limit}).") from exc
         except httpx.HTTPStatusError as exc:
             raise OllamaError(
                 f"Ollama returned HTTP {exc.response.status_code}: {exc.response.text}"
@@ -261,11 +268,14 @@ class OllamaClient:
     # ------------------------------------------------------------------
 
     async def _retry(self, fn, *args, **kwargs) -> str:
-        """Call fn with exponential backoff, up to self.max_retries attempts."""
+        """Call fn with exponential backoff, up to self.max_retries attempts.
+        Timeouts are not retried — they indicate a busy/slow model, not a transient error."""
         last_exc: Exception | None = None
         for attempt in range(self.max_retries):
             try:
                 return await fn(*args, **kwargs)
+            except OllamaTimeoutError:
+                raise  # never retry timeouts
             except OllamaError as exc:
                 last_exc = exc
                 if attempt < self.max_retries - 1:

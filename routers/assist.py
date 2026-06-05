@@ -14,7 +14,7 @@ from models.schemas import (
     TuneFixResponse,
     TuneFixSuggestion,
 )
-from ollama.client import OllamaClient, OllamaError
+from ollama.client import OllamaClient, OllamaError, OllamaTimeoutError
 from ollama.prompts import build_system_prompt, define_assist, suggest_tune_fix
 from utils import extract_json
 
@@ -25,6 +25,8 @@ async def _ollama_generate(prompt: str, temperature: float = 0.7) -> str:
     client = OllamaClient()
     try:
         return await client.generate(prompt, temperature=temperature)
+    except OllamaTimeoutError as exc:
+        raise HTTPException(status_code=504, detail=str(exc))
     except OllamaError as exc:
         raise HTTPException(status_code=503, detail=str(exc))
 
