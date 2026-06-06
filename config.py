@@ -5,7 +5,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     OLLAMA_BASE_URL: str = "http://localhost:11434"
-    OLLAMA_MODEL: str = "qwen3:8b"
+    OLLAMA_MODEL: str = "qwen3:8b-ctx2k"
     OLLAMA_TIMEOUT: float | None = None    # None = no timeout
     OLLAMA_MAX_RETRIES: int = 3
     OLLAMA_MODE: str = "local"             # "local" | "cloud"
