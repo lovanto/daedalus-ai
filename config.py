@@ -10,6 +10,7 @@ class Settings(BaseSettings):
     OLLAMA_MAX_RETRIES: int = 3
     OLLAMA_MODE: str = "local"             # "local" | "cloud"
     OLLAMA_THINK: bool = False             # set True to enable qwen3 chain-of-thought
+    OLLAMA_NUM_PREDICT: int = 1024         # max output tokens; guards against truncated JSON
 
     # Required when OLLAMA_MODE=cloud
     ANTHROPIC_API_KEY: str = ""

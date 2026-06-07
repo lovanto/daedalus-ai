@@ -257,11 +257,15 @@ def suggest_tune_fix(
     failure_type: str,
     failure_description: str,
     current_build: dict,
+    eval_history: list[dict] | None = None,
+    failing_cases: list[dict] | None = None,
 ) -> str:
     system_prompt = current_build.get("system_prompt", "")
     model_name = current_build.get("model_name", "")
     temperature = current_build.get("temperature", 0.7)
     tools = current_build.get("tools", [])
+    eval_history = eval_history or []
+    failing_cases = failing_cases or []
 
     fix_guidance = {
         "behavioral": (
@@ -278,6 +282,45 @@ def suggest_tune_fix(
         ),
     }.get(failure_type, "Analyze the failure and suggest appropriate fixes.")
 
+    # Score trend across recent evals — surfaces whether the agent is improving,
+    # plateauing, or regressing, and whether this failure type keeps repeating.
+    if eval_history:
+        trend_lines = []
+        for e in eval_history:
+            passed = e.get("test_cases_passed", 0)
+            failed = e.get("test_cases_failed", 0)
+            trend_lines.append(
+                f"- score {e.get('score', 0)}% "
+                f"({passed} passed / {failed} failed), "
+                f"failure_type={e.get('failure_type') or 'none'}, "
+                f"source={e.get('source') or 'n/a'}"
+            )
+        eval_section = "RECENT EVAL HISTORY (newest first):\n" + "\n".join(trend_lines)
+    else:
+        eval_section = "RECENT EVAL HISTORY: none provided."
+
+    # The concrete failing cases — the most actionable signal. Each shows what
+    # was asked, what behavior was expected, what the agent actually produced,
+    # and why the judge marked it failed.
+    if failing_cases:
+        case_blocks = []
+        for i, c in enumerate(failing_cases, 1):
+            case_blocks.append(
+                f"Failing case {i}"
+                + (f" [{c.get('category')}]" if c.get("category") else "")
+                + ":\n"
+                f"  Input: {c.get('input', '')}\n"
+                f"  Expected behavior: {c.get('expected_behavior', '')}\n"
+                f"  Actual output: {c.get('actual_output') or '(no output captured)'}\n"
+                f"  Why it failed: {c.get('reasoning') or '(no explanation)'}"
+            )
+        cases_section = "FAILING TEST CASES:\n" + "\n\n".join(case_blocks)
+    else:
+        cases_section = (
+            "FAILING TEST CASES: none provided — reason from the failure "
+            "description above."
+        )
+
     return f"""You are an expert in tuning AI agents to fix specific failure types.
 
 FAILURE TYPE: {failure_type}
@@ -287,20 +330,28 @@ CURRENT BUILD:
 - Model: {model_name}
 - Temperature: {temperature}
 - Tools: {json.dumps(tools) if isinstance(tools, (list, dict)) else tools}
-- System Prompt (excerpt, first 500 chars):
-{system_prompt[:500]}{"..." if len(system_prompt) > 500 else ""}
+- System Prompt (excerpt, first 1000 chars):
+{system_prompt[:1000]}{"..." if len(system_prompt) > 1000 else ""}
+
+{eval_section}
+
+{cases_section}
 
 TUNING GUIDANCE FOR {failure_type.upper()} FAILURES:
 {fix_guidance}
 
-Suggest 3-5 specific, actionable changes to fix this failure.
+Ground every suggestion in the specific failing cases above: name the case(s)
+each change addresses and explain why it would make the agent pass them. Do not
+propose generic advice that ignores the observed failures. If multiple cases
+share a root cause, address that root cause directly. Suggest 3-5 specific,
+actionable changes.
 
 Respond ONLY with a JSON object in this exact format:
 {{
   "suggestions": [
     {{
       "change_type": "system_prompt|temperature|model|tools|definition",
-      "description": "exactly what to change and how",
+      "description": "exactly what to change and how, referencing the failing case(s) it fixes",
       "expected_impact": "what improvement this change should produce"
     }}
   ]
@@ -345,3 +396,57 @@ CHANGES TO APPLY:
 Rewrite the system prompt so it incorporates every change above. Preserve the parts of the current prompt that already work; only modify what the changes require. Keep the same overall voice and structure unless a change calls for restructuring.
 
 Respond with ONLY the rewritten system prompt text. Do not include explanations, headers, commentary, or markdown code fences."""
+
+
+def tune_definition_plan(
+    current_definition: dict,
+    changes: list,
+    outcome_notes: str = "",
+) -> str:
+    """Revise an agent's DEFINITION fields to incorporate a tune cycle's
+    definition-level changes. Returns a prompt asking for a small JSON delta —
+    only the fields that actually change — so the (small-context) model is not
+    forced to re-emit the entire definition."""
+    goals = str(current_definition.get("goals", "") or "")
+    unsafe = str(current_definition.get("unsafe_zones", "") or "")
+    constraints = current_definition.get("constraints", [])
+    metrics = current_definition.get("success_metrics", [])
+    behaviors = current_definition.get("intended_behaviors", [])
+
+    lines = []
+    for c in changes:
+        if not isinstance(c, dict):
+            continue
+        desc = c.get("description", "")
+        impact = c.get("expected_impact", "")
+        line = f"- {desc}"
+        if impact:
+            line += f" (expected impact: {impact})"
+        lines.append(line)
+    changes_text = "\n".join(lines) if lines else "Tighten the definition for clarity."
+
+    notes_block = f"\n\nENGINEER NOTES:\n{outcome_notes}" if outcome_notes else ""
+
+    return f"""You are revising an AI agent's DEFINITION to address an evaluation failure.
+
+CURRENT DEFINITION (excerpts):
+- Goals: {goals[:400]}
+- Unsafe zones: {unsafe[:200]}
+- Constraints: {json.dumps(constraints)[:300] if isinstance(constraints, (list, dict)) else constraints}
+- Success metrics: {json.dumps(metrics)[:300] if isinstance(metrics, (list, dict)) else metrics}
+- Intended behaviors: {json.dumps(behaviors)[:300] if isinstance(behaviors, (list, dict)) else behaviors}
+
+DEFINITION CHANGES TO APPLY:
+{changes_text}{notes_block}
+
+Return ONLY a JSON object containing ONLY the fields that need to change. Omit
+any field that stays the same. Keep arrays short (max 6 items). Available fields:
+{{
+  "goals": "revised goals text",
+  "unsafe_zones": "revised unsafe zones text",
+  "constraints": ["constraint 1", "constraint 2"],
+  "success_metrics": ["metric 1"],
+  "intended_behaviors": ["behavior 1"]
+}}
+
+Do not include explanations, headers, or markdown code fences."""

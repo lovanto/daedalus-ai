@@ -210,7 +210,7 @@ class OllamaClient:
             "model": model,
             "prompt": prompt,
             "stream": False,
-            "options": {"temperature": temperature},
+            "options": {"temperature": temperature, "num_predict": settings.OLLAMA_NUM_PREDICT},
             "think": self._mode == "local" and settings.OLLAMA_THINK,
         }
         if system:
@@ -225,7 +225,7 @@ class OllamaClient:
             "model": model,
             "prompt": prompt,
             "stream": False,
-            "options": {"temperature": temperature},
+            "options": {"temperature": temperature, "num_predict": settings.OLLAMA_NUM_PREDICT},
             "think": True,
         }
         if system:

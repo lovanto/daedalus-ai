@@ -149,10 +149,34 @@ class ScopeDriftResponse(BaseModel):
 # /ai/assist/tune/suggest-fix
 # ---------------------------------------------------------------------------
 
+class TuneFixFailingCase(BaseModel):
+    input: str = ""
+    expected_behavior: str = ""
+    actual_output: str = ""
+    reasoning: str = ""
+    category: str = ""
+
+
+class TuneFixEvalRecord(BaseModel):
+    score: float = 0.0
+    failure_type: str = ""
+    test_cases_passed: int = 0
+    test_cases_failed: int = 0
+    notes: str = ""
+    source: str = ""
+    created_at: str = ""
+
+
 class TuneFixRequest(BaseModel):
     failure_type: str = Field(..., description="behavioral|structural|scope")
     failure_description: str
     current_build: dict = {}
+    # Recent eval history (newest first) — lets the model read the score trend
+    # and whether the same failure type keeps recurring.
+    eval_history: list[TuneFixEvalRecord] = Field(default_factory=list)
+    # The concrete cases that failed in the latest eval, with the agent's actual
+    # output and the judge's verdict — the strongest signal for a targeted fix.
+    failing_cases: list[TuneFixFailingCase] = Field(default_factory=list)
 
 
 class TuneFixSuggestion(BaseModel):
@@ -181,3 +205,51 @@ class RewritePromptRequest(BaseModel):
 
 class RewritePromptResponse(BaseModel):
     system_prompt: str
+
+
+# ---------------------------------------------------------------------------
+# /ai/assist/tune/apply-plan
+# ---------------------------------------------------------------------------
+
+class ApplyPlanRequest(BaseModel):
+    current_prompt: str = ""
+    failure_type: str = Field(default="", description="behavioral|structural|scope|none")
+    changes: list[dict] = Field(
+        default_factory=list,
+        description="The tune cycle's changes: [{change_type, description, expected_impact}]",
+    )
+    outcome_notes: str = ""
+    # Current build config the plan should start from (FE supplies this).
+    current_build: dict = Field(default_factory=dict)
+    # Current definition — supplied by FE as current_definition, or auto-injected
+    # by the Go proxy as agent_definition. Either is accepted.
+    current_definition: dict = Field(default_factory=dict)
+    agent_definition: dict = Field(default_factory=dict)
+
+
+class ApplyBuildPlan(BaseModel):
+    system_prompt: str = ""
+    model_provider: str | None = None
+    model_name: str | None = None
+    temperature: float | None = None
+    tools: list | None = None
+
+
+class ApplyDefinitionPlan(BaseModel):
+    goals: str | None = None
+    constraints: list | None = None
+    unsafe_zones: str | None = None
+    success_metrics: list | None = None
+    intended_behaviors: list | None = None
+
+
+class ApplyTargetNote(BaseModel):
+    phase: str  # "build" | "define"
+    change_type: str
+    description: str
+
+
+class ApplyPlanResponse(BaseModel):
+    build: ApplyBuildPlan
+    definition: ApplyDefinitionPlan | None = None
+    targets: list[ApplyTargetNote] = Field(default_factory=list)
