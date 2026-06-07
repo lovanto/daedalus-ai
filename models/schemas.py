@@ -33,6 +33,10 @@ class AssistDefineRequest(BaseModel):
     agent_name: str
     agent_description: str = ""
     existing_content: str = ""
+    think: bool = Field(
+        default=False,
+        description="Return the model's reasoning trace. Slower — use for interactive single-section assist, not batch drafts.",
+    )
 
 
 class DefineSuggestion(BaseModel):
@@ -43,6 +47,7 @@ class DefineSuggestion(BaseModel):
 
 class AssistDefineResponse(BaseModel):
     suggestions: list[DefineSuggestion]
+    thinking: str = ""
 
 
 # ---------------------------------------------------------------------------
@@ -158,3 +163,21 @@ class TuneFixSuggestion(BaseModel):
 
 class TuneFixResponse(BaseModel):
     suggestions: list[TuneFixSuggestion]
+
+
+# ---------------------------------------------------------------------------
+# /ai/assist/tune/rewrite-prompt
+# ---------------------------------------------------------------------------
+
+class RewritePromptRequest(BaseModel):
+    current_prompt: str = ""
+    failure_type: str = Field(default="", description="behavioral|structural|scope|none")
+    changes: list[dict] = Field(
+        default_factory=list,
+        description="The tune cycle's changes: [{change_type, description, expected_impact}]",
+    )
+    outcome_notes: str = ""
+
+
+class RewritePromptResponse(BaseModel):
+    system_prompt: str

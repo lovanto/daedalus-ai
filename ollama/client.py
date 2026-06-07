@@ -91,15 +91,21 @@ class OllamaClient:
         model: str | None = None,
         system: str | None = None,
         temperature: float = 0.7,
+        use_cache: bool = True,
     ) -> str:
-        """Single-turn text generation with caching and retry."""
+        """Single-turn text generation with caching and retry.
+
+        Set ``use_cache=False`` for calls that must reflect current behavior on
+        every run (e.g. eval runs after a tune), so an identical prompt doesn't
+        return a stale cached result."""
         resolved_model = model or self.default_model
         resolved_system = system or ""
 
-        cached = _cache.get(prompt, resolved_model, resolved_system, temperature)
-        if cached is not None:
-            logger.debug("cache hit for prompt hash")
-            return cached
+        if use_cache:
+            cached = _cache.get(prompt, resolved_model, resolved_system, temperature)
+            if cached is not None:
+                logger.debug("cache hit for prompt hash")
+                return cached
 
         if self._mode == "cloud":
             result = await self._cloud_generate(prompt, model=resolved_model, system=resolved_system)
@@ -108,8 +114,33 @@ class OllamaClient:
                                        model=resolved_model, system=resolved_system,
                                        temperature=temperature)
 
-        _cache.set(prompt, resolved_model, resolved_system, temperature, result)
+        if use_cache:
+            _cache.set(prompt, resolved_model, resolved_system, temperature, result)
         return result
+
+    async def generate_with_thinking(
+        self,
+        prompt: str,
+        *,
+        model: str | None = None,
+        system: str | None = None,
+        temperature: float = 0.7,
+    ) -> tuple[str, str]:
+        """Single-turn generation that also returns the model's reasoning trace.
+
+        Returns (answer, thinking). Forces ``think=True`` in local mode so the
+        reasoning arrives in a separate field and the answer stays clean. Not
+        cached — the thinking trace varies per run."""
+        resolved_model = model or self.default_model
+        resolved_system = system or ""
+
+        if self._mode == "cloud":
+            answer = await self._cloud_generate(prompt, model=resolved_model, system=resolved_system)
+            return answer, ""
+        return await self._retry(
+            self._local_generate_thinking, prompt,
+            model=resolved_model, system=resolved_system, temperature=temperature,
+        )
 
     async def chat(
         self,
@@ -186,6 +217,21 @@ class OllamaClient:
             payload["system"] = system
         data = await self._post("/api/generate", payload)
         return data.get("response", "")
+
+    async def _local_generate_thinking(
+        self, prompt: str, *, model: str, system: str, temperature: float
+    ) -> tuple[str, str]:
+        payload: dict = {
+            "model": model,
+            "prompt": prompt,
+            "stream": False,
+            "options": {"temperature": temperature},
+            "think": True,
+        }
+        if system:
+            payload["system"] = system
+        data = await self._post("/api/generate", payload)
+        return data.get("response", ""), (data.get("thinking") or "")
 
     async def _local_chat(self, messages: list[dict], *, model: str | None, system: str | None) -> str:
         all_messages = []

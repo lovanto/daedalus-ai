@@ -122,6 +122,7 @@ async def run_eval_case(req: RunEvalCaseRequest) -> RunEvalCaseResponse:
             system=req.system_prompt or None,
             model=req.model or None,
             temperature=0.7,
+            use_cache=False,  # always re-run — reflect the current (e.g. post-tune) prompt
         )
     except OllamaTimeoutError as exc:
         raise HTTPException(status_code=504, detail=str(exc))
@@ -145,7 +146,7 @@ Respond ONLY with JSON:
 }}"""
 
     try:
-        eval_raw = await client.generate(eval_prompt, temperature=0.1)
+        eval_raw = await client.generate(eval_prompt, temperature=0.1, use_cache=False)
     except OllamaError:
         # Evaluation call failed — return the output without a verdict
         return RunEvalCaseResponse(

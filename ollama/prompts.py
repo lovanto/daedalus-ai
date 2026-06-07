@@ -305,3 +305,43 @@ Respond ONLY with a JSON object in this exact format:
     }}
   ]
 }}"""
+
+
+def rewrite_system_prompt(
+    current_prompt: str,
+    failure_type: str,
+    changes: list,
+    outcome_notes: str = "",
+) -> str:
+    """Rewrite an existing system prompt so it incorporates a tune cycle's changes."""
+    lines = []
+    for c in changes:
+        if not isinstance(c, dict):
+            continue
+        change_type = c.get("change_type", "general")
+        description = c.get("description", "")
+        impact = c.get("expected_impact", "")
+        line = f"- [{change_type}] {description}"
+        if impact:
+            line += f" (expected impact: {impact})"
+        lines.append(line)
+    changes_text = "\n".join(lines) if lines else "No specific changes listed — improve clarity and guardrails."
+
+    notes_block = f"\n\nENGINEER NOTES:\n{outcome_notes}" if outcome_notes else ""
+    current_block = current_prompt if current_prompt.strip() else "(empty — write a complete prompt from the changes below)"
+
+    return f"""You are an expert AI system prompt engineer revising an agent's system prompt to fix an evaluation failure.
+
+FAILURE TYPE: {failure_type or "unspecified"}
+
+CURRENT SYSTEM PROMPT:
+\"\"\"
+{current_block}
+\"\"\"
+
+CHANGES TO APPLY:
+{changes_text}{notes_block}
+
+Rewrite the system prompt so it incorporates every change above. Preserve the parts of the current prompt that already work; only modify what the changes require. Keep the same overall voice and structure unless a change calls for restructuring.
+
+Respond with ONLY the rewritten system prompt text. Do not include explanations, headers, commentary, or markdown code fences."""
