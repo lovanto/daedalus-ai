@@ -10,7 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from config import settings
 from db import close_pool
 from ollama.client import OllamaClient
-from routers import assist, eval, analyze
+from routers import assist, eval, analyze, chat
 
 logging.basicConfig(
     level=logging.INFO,
@@ -34,6 +34,7 @@ app.add_middleware(
 app.include_router(assist.router, prefix="/ai")
 app.include_router(eval.router, prefix="/ai")
 app.include_router(analyze.router, prefix="/ai")
+app.include_router(chat.router, prefix="/ai")
 
 
 # ---------------------------------------------------------------------------

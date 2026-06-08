@@ -35,6 +35,15 @@ DEFINE_SECTION_GUIDANCE = {
     ),
 }
 
+# The frontend (manual pages and Auto-Pilot) sends the definition's field names,
+# which don't all match the guidance keys above. Normalize so every section gets
+# its specific guidance instead of silently falling back to the generic line.
+DEFINE_SECTION_ALIASES = {
+    "goals": "mission",
+    "intended_behaviors": "behaviors",
+    "success_metrics": "metrics",
+}
+
 
 def define_assist(
     section: str,
@@ -42,6 +51,7 @@ def define_assist(
     agent_description: str,
     existing_content: str = "",
 ) -> str:
+    section = DEFINE_SECTION_ALIASES.get(section, section)
     guidance = DEFINE_SECTION_GUIDANCE.get(section, "Provide helpful suggestions for this section.")
     existing_note = (
         f"\n\nEXISTING CONTENT (improve or expand this):\n{existing_content}"

@@ -114,6 +114,27 @@ class RunEvalCaseResponse(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# /ai/chat
+# ---------------------------------------------------------------------------
+
+class ChatMessage(BaseModel):
+    role: str = Field(..., description="user|assistant")
+    content: str
+
+
+class ChatRequest(BaseModel):
+    # Full conversation so far (oldest first), including the latest user turn.
+    messages: list[ChatMessage] = Field(default_factory=list)
+    # The agent's persona — injected by the Go proxy from the latest build.
+    system_prompt: str = ""
+    model: str = ""
+
+
+class ChatResponse(BaseModel):
+    reply: str
+
+
+# ---------------------------------------------------------------------------
 # /ai/analyze/patterns
 # ---------------------------------------------------------------------------
 
